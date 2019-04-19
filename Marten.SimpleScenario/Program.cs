@@ -60,13 +60,14 @@ namespace MartenCS
 
             using (var session = store.OpenSession())
             {
-                var tran1 = new AccountTransactionCreated { Id = Guid.NewGuid(), Date = DateTime.Now, Description = "Open Account", Amount = 1000m };
-                var tran2 = new AccountTransactionCreated { Id = Guid.NewGuid(), Date = DateTime.Now, Description = "Westpac transfer", Amount = 500m };
-                session.Events.StartStream<BankAccount>(streamID, bankAccount, tran1, tran2);
+                var bankAccountCreated = new BankAccountCreated { AccountId = streamID, Name = "Sandeep Chandra", Total = 0 };
+                var firstTransactionCreated = new AccountTransactionCreated { Id = Guid.NewGuid(), Date = DateTime.Now, Description = "Open Account", Amount = 1000m };
+                var secondTransactionCreated = new AccountTransactionCreated { Id = Guid.NewGuid(), Date = DateTime.Now, Description = "Westpac transfer", Amount = 500m };
+                session.Events.StartStream<BankAccount>(streamID, bankAccountCreated, firstTransactionCreated, secondTransactionCreated);
                 session.SaveChanges();
 
-                var tran3 = new AccountTransactionCreated { Id = Guid.NewGuid(), Date = DateTime.Now, Description = "Transfer to ANZ", Amount = -200m };
-                session.Events.Append(streamID, tran3);
+                var thirdTransactionCreated = new AccountTransactionCreated { Id = Guid.NewGuid(), Date = DateTime.Now, Description = "Transfer to ANZ", Amount = -200m };
+                session.Events.Append(streamID, thirdTransactionCreated);
                 session.SaveChanges();
             }
         }
