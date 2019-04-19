@@ -37,14 +37,16 @@ namespace MartenCS
             Total = total;
         }
 
-        public void Apply(AccountTransactionCreated trn)
+        public void Apply(AccountTransactionCreated @event)
         {
-            Total += trn.Amount;
+            Total += @event.Amount;
         }
 
-        public void Apply(BankAccount acc)
+        public void Apply(BankAccountCreated @event)
         {
-            Name = acc.Name;
+            Id = @event.AccountId;
+            Name = @event.Name;
+            Total = 0;
         }
     }
 
@@ -55,8 +57,6 @@ namespace MartenCS
         private static void WriteData(DocumentStore store)
         {
             store.Advanced.Clean.CompletelyRemoveAll();
-
-            var bankAccount = new BankAccount { Id = streamID, Name = "Sandeep Chandra", Total = 0 };
 
             using (var session = store.OpenSession())
             {
@@ -76,17 +76,16 @@ namespace MartenCS
         {
             using (var session = store.OpenSession())
             {
-                //var events = session.Events.AggregateStream<BankAccount>(streamID);
-                var id = Guid.Parse("e037ea1e-c8d2-466a-a8af-9cb1bd12b49c");
-                session.Events.FetchStream(id);
-                var events = session.Events.AggregateStream<BankAccount>(id);
+                session.Events.FetchStream(streamID);
+                var events = session.Events.AggregateStream<BankAccount>(streamID);
                 System.Diagnostics.Debug.WriteLine(events);
             }
         }
 
         private static void Main(string[] args)
         {
-            var conStr = "User ID=notyou;Password=secret;Host=localhost;Port=5432;Database=MartenTestCS;Pooling=true;";
+            //var conStr = "User ID=notyou;Password=secret;Host=localhost;Port=5432;Database=MartenTestCS;Pooling=true;";
+            var conStr = "PORT = 5432; HOST = 127.0.0.1; TIMEOUT = 15; POOLING = True; MINPOOLSIZE = 1; MAXPOOLSIZE = 100; COMMANDTIMEOUT = 20; DATABASE = 'postgres'; PASSWORD = 'Password12!'; USER ID = 'postgres'";
             var store = DocumentStore.For(x =>
             {
                 x.Connection(conStr);
@@ -94,7 +93,7 @@ namespace MartenCS
                 //x.Events.AddEventType(typeof(BankAccount));
                 //x.Events.AddEventType(typeof(AccountTransaction));
             });
-            //WriteData(store);
+            WriteData(store);
             ReadData(store);
         }
     }
