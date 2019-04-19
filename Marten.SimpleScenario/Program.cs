@@ -5,7 +5,7 @@ using Marten;
 
 namespace MartenCS
 {
-    internal class AccountTransaction
+    internal class AccountTransactionCreated
     {
         public Guid Id { get; set; }
         public DateTime Date { get; set; }
@@ -30,7 +30,7 @@ namespace MartenCS
             Total = total;
         }
 
-        public void Apply(AccountTransaction trn)
+        public void Apply(AccountTransactionCreated trn)
         {
             Total += trn.Amount;
         }
@@ -53,12 +53,12 @@ namespace MartenCS
 
             using (var session = store.OpenSession())
             {
-                var tran1 = new AccountTransaction { Id = Guid.NewGuid(), Date = DateTime.Now, Description = "Open Account", Amount = 1000m };
-                var tran2 = new AccountTransaction { Id = Guid.NewGuid(), Date = DateTime.Now, Description = "Westpac transfer", Amount = 500m };
+                var tran1 = new AccountTransactionCreated { Id = Guid.NewGuid(), Date = DateTime.Now, Description = "Open Account", Amount = 1000m };
+                var tran2 = new AccountTransactionCreated { Id = Guid.NewGuid(), Date = DateTime.Now, Description = "Westpac transfer", Amount = 500m };
                 session.Events.StartStream<BankAccount>(streamID, bankAccount, tran1, tran2);
                 session.SaveChanges();
 
-                var tran3 = new AccountTransaction { Id = Guid.NewGuid(), Date = DateTime.Now, Description = "Transfer to ANZ", Amount = -200m };
+                var tran3 = new AccountTransactionCreated { Id = Guid.NewGuid(), Date = DateTime.Now, Description = "Transfer to ANZ", Amount = -200m };
                 session.Events.Append(streamID, tran3);
                 session.SaveChanges();
             }
