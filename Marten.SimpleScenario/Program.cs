@@ -13,6 +13,13 @@ namespace MartenCS
         public decimal Amount { get; set; }
     }
 
+    internal class BankAccountCreated
+    {
+        public Guid AccountId { get; set; }
+        public string Name { get; set; }
+        public decimal Total { get; set; }
+    }
+
     internal class BankAccount
     {
         public Guid Id { get; set; }
