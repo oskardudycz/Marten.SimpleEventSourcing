@@ -1,13 +1,56 @@
 ﻿using System;
+using System.Collections;
 using Marten;
+using Marten.Events;
+using Newtonsoft.Json;
 
 //using MartenLib;
 
 namespace MartenCS
 {
-    internal class AccountTransactionCreated
+    internal interface IAggregate
+    {
+        Guid Id { get; }
+
+        object[] DequeuePendingEvents();
+    }
+
+    internal abstract class Aggregate : IAggregate
     {
         public Guid Id { get; set; }
+
+        [JsonIgnore]
+        protected Queue PendingEvents { get; private set; } = new Queue();
+
+        public object[] DequeuePendingEvents()
+        {
+            var result = PendingEvents.ToArray();
+            PendingEvents = new Queue();
+            return result;
+        }
+
+        protected void Append(object @event)
+        {
+            PendingEvents.Enqueue(@event);
+        }
+    }
+
+    internal static class AggregateExtensions
+    {
+        internal static void Add(this IEventStore eventStore, IAggregate aggregate)
+        {
+            eventStore.StartStream(aggregate.Id, aggregate.DequeuePendingEvents());
+        }
+
+        internal static void Update(this IEventStore eventStore, IAggregate aggregate)
+        {
+            eventStore.Append(aggregate.Id, aggregate.DequeuePendingEvents());
+        }
+    }
+
+    internal class AccountTransactionCreated
+    {
+        public Guid TransactionId { get; set; }
         public DateTime Date { get; set; }
         public string Description { get; set; }
         public decimal Amount { get; set; }
@@ -20,9 +63,8 @@ namespace MartenCS
         public decimal Total { get; set; }
     }
 
-    internal class BankAccount
+    internal class BankAccount : Aggregate
     {
-        public Guid Id { get; set; }
         public string Name { get; set; }
         public decimal Total { get; set; }
 
@@ -32,21 +74,41 @@ namespace MartenCS
 
         public BankAccount(Guid id, string name, decimal total)
         {
-            Id = id;
-            Name = name;
-            Total = total;
+            var @event = new BankAccountCreated
+            {
+                AccountId = id,
+                Name = name,
+                Total = total
+            };
+
+            Append(@event);
+            Apply(@event);
         }
 
-        public void Apply(AccountTransactionCreated @event)
+        public void AddTransaction(decimal amount, string description)
         {
-            Total += @event.Amount;
+            var @event = new AccountTransactionCreated
+            {
+                TransactionId = Guid.NewGuid(),
+                Date = DateTime.Now,
+                Amount = amount,
+                Description = description
+            };
+
+            Append(@event);
+            Apply(@event);
         }
 
         public void Apply(BankAccountCreated @event)
         {
             Id = @event.AccountId;
             Name = @event.Name;
-            Total = 0;
+            Total = @event.Total;
+        }
+
+        public void Apply(AccountTransactionCreated @event)
+        {
+            Total += @event.Amount;
         }
     }
 
@@ -60,14 +122,17 @@ namespace MartenCS
 
             using (var session = store.OpenSession())
             {
-                var bankAccountCreated = new BankAccountCreated { AccountId = streamID, Name = "Sandeep Chandra", Total = 0 };
-                var firstTransactionCreated = new AccountTransactionCreated { Id = Guid.NewGuid(), Date = DateTime.Now, Description = "Open Account", Amount = 1000m };
-                var secondTransactionCreated = new AccountTransactionCreated { Id = Guid.NewGuid(), Date = DateTime.Now, Description = "Westpac transfer", Amount = 500m };
-                session.Events.StartStream<BankAccount>(streamID, bankAccountCreated, firstTransactionCreated, secondTransactionCreated);
-                session.SaveChanges();
+                var account = new BankAccount(streamID, "Sandeep Chandra", 0);
+                account.AddTransaction(1000m, "Open Account");
+                account.AddTransaction(500m, "Westpac transfer");
+                account.AddTransaction(-200m, "Transfer to ANZ");
 
-                var thirdTransactionCreated = new AccountTransactionCreated { Id = Guid.NewGuid(), Date = DateTime.Now, Description = "Transfer to ANZ", Amount = -200m };
-                session.Events.Append(streamID, thirdTransactionCreated);
+                session.Events.Add(account);
+
+                session.SaveChanges();
+                account.AddTransaction(-100m, "Transfer to GMBH");
+
+                session.Events.Update(account);
                 session.SaveChanges();
             }
         }
@@ -77,8 +142,9 @@ namespace MartenCS
             using (var session = store.OpenSession())
             {
                 session.Events.FetchStream(streamID);
-                var events = session.Events.AggregateStream<BankAccount>(streamID);
-                System.Diagnostics.Debug.WriteLine(events);
+
+                var account = session.Events.AggregateStream<BankAccount>(streamID);
+                System.Diagnostics.Debug.WriteLine(account);
             }
         }
 
