@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections;
+using System.Diagnostics;
 using Marten;
 using Marten.Events;
 using Newtonsoft.Json;
@@ -48,25 +49,48 @@ namespace MartenCS
         }
     }
 
-    internal class AccountTransactionCreated
-    {
-        public Guid TransactionId { get; set; }
-        public DateTime Date { get; set; }
-        public string Description { get; set; }
-        public decimal Amount { get; set; }
-    }
-
     internal class BankAccountCreated
     {
-        public Guid AccountId { get; set; }
-        public string Name { get; set; }
-        public decimal Total { get; set; }
+        public Guid AccountId { get; }
+        public string Name { get; }
+        public decimal Total { get; }
+
+        public BankAccountCreated(
+            Guid accountId,
+            string name,
+            decimal total)
+        {
+            AccountId = accountId;
+            Name = name;
+            Total = total;
+        }
+    }
+
+    internal class AccountTransactionCreated
+    {
+        public Guid TransactionId { get; }
+        public DateTime Date { get; }
+        public decimal Amount { get; }
+        public string Description { get; }
+
+        public AccountTransactionCreated(
+            Guid transactionId,
+            DateTime date,
+            decimal amount,
+            string description)
+        {
+            TransactionId = transactionId;
+            Date = date;
+            Description = description;
+            Amount = amount;
+        }
     }
 
     internal class BankAccount : Aggregate
     {
-        public string Name { get; set; }
-        public decimal Total { get; set; }
+        public string Name { get; private set; }
+        public decimal Total { get; private set; }
+        public long TransactionCount { get; private set; }
 
         public BankAccount()
         {
@@ -74,12 +98,11 @@ namespace MartenCS
 
         public BankAccount(Guid id, string name, decimal total)
         {
-            var @event = new BankAccountCreated
-            {
-                AccountId = id,
-                Name = name,
-                Total = total
-            };
+            var @event = new BankAccountCreated(
+                id,
+                name,
+                total
+            );
 
             Append(@event);
             Apply(@event);
@@ -87,13 +110,12 @@ namespace MartenCS
 
         public void AddTransaction(decimal amount, string description)
         {
-            var @event = new AccountTransactionCreated
-            {
-                TransactionId = Guid.NewGuid(),
-                Date = DateTime.Now,
-                Amount = amount,
-                Description = description
-            };
+            var @event = new AccountTransactionCreated(
+                Guid.NewGuid(),
+                DateTime.Now,
+                amount,
+                description
+            );
 
             Append(@event);
             Apply(@event);
@@ -109,6 +131,7 @@ namespace MartenCS
         public void Apply(AccountTransactionCreated @event)
         {
             Total += @event.Amount;
+            TransactionCount++;
         }
     }
 
@@ -144,7 +167,13 @@ namespace MartenCS
                 session.Events.FetchStream(streamID);
 
                 var account = session.Events.AggregateStream<BankAccount>(streamID);
-                System.Diagnostics.Debug.WriteLine(account);
+
+                Debug.WriteLine(account);
+
+                Debug.Assert(account.Id == streamID);
+                Debug.Assert(account.Name == "Sandeep Chandra");
+                Debug.Assert(account.TransactionCount == 4);
+                Debug.Assert(account.Total == 1200m);
             }
         }
 
